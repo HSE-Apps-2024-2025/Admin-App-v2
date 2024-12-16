@@ -29,6 +29,9 @@ export default function App({ Component, pageProps }) {
       setValidUser(true);
       console.log("Valid");
     }
+     // REMOVE THIS LATER
+    setValidUser(true);
+    console.log("Valid");
   };
 
 
@@ -36,6 +39,7 @@ export default function App({ Component, pageProps }) {
   if (!validUser) {
     return (
       <div className="w-full px-5">
+        <h1> IF THIS IS MESSAGE IS HERE EMAIL John IMMEDIATELY</h1>
         <h1 className="mt-3 mb-2">Enter Password:</h1>
         <input
           type="password"

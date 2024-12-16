@@ -26,9 +26,14 @@ const menuData = {
       },
       {
         title: "Calendar",
-        description: "Edit the calendar and summer clock",
+        description: "Edit the calendar (the legacy version) and summer clock",
         href: "/schedule/calendar",
       },
+      {
+        title: "Calendar v2",
+        description: "Edit the all-new calendar, in a much better way. ",
+        href: "/schedule/calendarv2",
+      }
     ],
   },
   courses: {
