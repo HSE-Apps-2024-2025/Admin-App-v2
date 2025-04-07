@@ -1,0 +1,22 @@
+1
+    event infrastructure
+        client: 
+            Get events
+            (startDate - endDate)
+            process dates
+
+        server:
+            get events
+            make sure readable
+        
+    add event 
+        client: make event
+        server: correct event
+
+
+
+
+
+event
+startDate
+enddate 

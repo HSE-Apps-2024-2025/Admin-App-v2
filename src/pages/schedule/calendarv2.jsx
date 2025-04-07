@@ -11,7 +11,7 @@ import CategoryEditor from './calendarv2/categoryEditor';
 
 const Calendarv2 = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [startDate, setStartDate] = useState(null);
+  const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState(null);
   
   // Store the colored days as an array of date strings
@@ -26,16 +26,19 @@ const Calendarv2 = () => {
   const [dates, setDates] = useState([]);
 
   useEffect(() => {
-    fetch('/api/schedule/dates', { method: 'GET' })
+    fetch('/api/schedule/events2', { 
+      method: 'GET',
+    })
       .then(response => response.json())
       .then(data => {
-        setDates(data.dates);
-        console.log(data.dates);
+        setDates(data);
+        console.log(data);
       })
       .catch(error => {
         console.error('Error fetching dates:', error);
       });
   }, []);
+
 
   useEffect(() => {
     console.log('Selected Date:', selectedDate);
@@ -61,7 +64,7 @@ const Calendarv2 = () => {
   };
 
   // Custom tile content renderer for the calendar
-  const tileClassName = ({ date, view }) => {
+  const tileStyler = ({ date, view }) => {
     // If the date is in the colored dates list, return a class to style it
     if (coloredDates.includes(date.toDateString())) {
       return (
@@ -100,7 +103,7 @@ const Calendarv2 = () => {
           onChange={setSelectedDate}
           value={selectedDate}
           onClickDay={setSelectedDate} // Click to select a date
-          tileContent={tileClassName} // Use the custom tile renderer
+          tileContent={tileStyler} // Use the custom tile renderer
           onMouseDown={(event, date) => {
             if (event.button === 2) {  // Right-click (button 2)
               handleRightClick(event, date);
@@ -110,7 +113,6 @@ const Calendarv2 = () => {
       </div>
       
       
-      {/* Optionally, show the colored dates */}
       <div>
         <h3>Colored Dates:</h3>
         <ul>
@@ -119,8 +121,7 @@ const Calendarv2 = () => {
           ))}
         </ul>
       </div>
-      {/* <CategoryEditor /> */}
-      {/* <EventEditor selectedDate={selectedDate} /> */}
+       <EventEditor selectedDate={selectedDate} />
     </div>
   );
 

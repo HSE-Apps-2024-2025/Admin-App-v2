@@ -15,36 +15,53 @@ export default async function handler(req, res) {
     
     // If the request method is "GET", retrieve all events
     if (req.method == "GET") {
-        const currentDate = new Date();
-        let startDate, endDate;
-
-        // Check if the request body contains a date range
-        if (req.body.startDate && req.body.endDate) {
-            startDate = new Date(req.body.startDate);
-            endDate = new Date(req.body.endDate);
+        // Check if date query parameter exists
+        if (req.query.date) {
+            // Get the date parameter from the request query
+            const dateParam = req.query.date;
+            // Return events for the specified date
+            // This handles the date portion comparison when dates in MongoDB are ISO format
+            const startOfDay = new Date(dateParam);
+            startOfDay.setUTCHours(0, 0, 0, 0);
+            
+            const endOfDay = new Date(dateParam);
+            endOfDay.setUTCHours(23, 59, 59, 999);
+            
+            console.log(startOfDay)
+            console.log(endOfDay)
+            const events = await collection.find({
+                "content.date": {
+                    $gte: startOfDay.toISOString(),
+                    $lte: endOfDay.toISOString()
+                }
+            }).toArray();
+            
+            res.status(200).json(events);
         } else {
-            // Default to next month if no date range provided
-            startDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-            endDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+            // Original behavior - return all events if no date specified
+            const events = await collection.find({}).toArray();
+            res.status(200).json(events);
         }
-
-        const events = await collection.find({
-            startDate: {
-                $gte: startDate,
-                $lte: endDate
-            }
-        }).toArray();
-
-        res.status(200).json(events);
-
     }
-    
     // If the request method is "POST", create a new event or update an existing event
     else if (req.method == "POST") {
         const event = {...req.body};
-        delete event._id;
-        const resp = await collection.updateOne({ _id: new ObjectId(req.body._id) }, { $set: event }, { upsert: true });
-        res.status(200).json({ message: "Event created", _id: resp.insertedId });
+        
+        if (event.action == "add"){
+            const resp = await collection.updateOne({ _id: new ObjectId(req.body._id) }, { $set: event }, { upsert: true });
+            res.status(200).json({ message: "Event created", _id: resp.insertedId });
+        }    
+        else if (event.action == "update"){
+            await collection.updateOne({ _id: new ObjectId(event._id) }, { $set: event.content});
+            res.status(200).json({ message: "Event updated" });
+        }
+        else if (event.action == "delete"){
+            await collection.deleteOne({ _id: new ObjectId(event._id) });
+            res.status(200).json({ message: "Event deleted" });
+        }
+        else {
+            res.status(400).json({ message: "Invalid action" });
+        }
     }
 
     // Close the database connection after a short delay (1500ms)

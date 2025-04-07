@@ -6,7 +6,6 @@ export default function CalendarMaker() {
   const [endDate, setEndDate] = useState(null);
 
 return (
-
     <div className="date-selection">
       <h2>Select Academic Calendar Bounds</h2>
       <DatePicker

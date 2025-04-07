@@ -111,24 +111,30 @@ export default function App({ Component, pageProps }) {
                   </svg>
                 </Link>
 
+                
                 <h1 className="font-light text-lg">
-                  {menuData[router.pathname.split("/")[1]].title}
+                  {menuData[router.pathname.split("/")[1]]?.title || "Dashboard"}
                 </h1>
               </div>
-              {menuData[router.pathname.split("/")[1]].items.map((item) => (
-                <Link key={item.href} href={item.href}>
-                  <div
-                    className={`rounded-lg px-3 py-5 mt-2 cursor-pointer ${
-                      router.pathname != item.href && "hover:bg-slate-50"
-                    } ${
-                      router.pathname == item.href ? "bg-slate-200" : "bg-white"
-                    }`}
-                  >
-                    <h1>{item.title}</h1>
-                    <p className="text-xs mt-1">{item.description}</p>
-                  </div>
-                </Link>
-              ))}
+
+              {/* Replace the problematic map function with this safer version */}
+              {menuData[router.pathname.split("/")[1]]?.items ? 
+                menuData[router.pathname.split("/")[1]].items.map((item) => (
+                  <Link key={item.href} href={item.href}>
+                    <div
+                      className={`rounded-lg px-3 py-5 mt-2 cursor-pointer ${
+                        router.pathname != item.href && "hover:bg-slate-50"
+                      } ${
+                        router.pathname == item.href ? "bg-slate-200" : "bg-white"
+                      }`}
+                    >
+                      <h1>{item.title}</h1>
+                      <p className="text-xs mt-1">{item.description}</p>
+                    </div>
+                  </Link>
+                )) 
+                : null
+              }
             </div>
           </div>
           <Component {...pageProps} />
