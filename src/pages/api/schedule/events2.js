@@ -37,7 +37,44 @@ export default async function handler(req, res) {
             }).toArray();
             
             res.status(200).json(events);
-        } else {
+        }
+        else if (req.query.getColoredDates) { 
+            try {
+                // Get all events
+                const allEvents = await collection.find({}).toArray();
+                
+                // Create a map to group events by date and collect unique category IDs
+                const dateMap = new Map();
+                
+                allEvents.forEach(event => {
+                    if (event.content && event.content.date) {
+                        // Extract just the date part (YYYY-MM-DD) from ISO string
+                        const dateOnly = new Date(event.content.date).toISOString().split('T')[0];
+                        
+                        if (!dateMap.has(dateOnly)) {
+                            dateMap.set(dateOnly, new Set());
+                        }
+                        
+                        // Add categoryId to the set for this date (if it exists)
+                        if (event.content.categoryId) {
+                            dateMap.get(dateOnly).add(event.content.categoryId);
+                        }
+                    }
+                });
+                
+                // Convert the map to the required output format
+                const coloredDates = Array.from(dateMap).map(([date, categoryIdsSet]) => ({
+                    date: date,
+                    categories: Array.from(categoryIdsSet)
+                }));
+                
+                res.status(200).json(coloredDates);
+            } catch (error) {
+                console.error("Error getting colored dates:", error);
+                res.status(500).json({ message: "Error retrieving colored dates" });
+            }
+        }
+        else {
             // Original behavior - return all events if no date specified
             const events = await collection.find({}).toArray();
             res.status(200).json(events);
@@ -47,17 +84,48 @@ export default async function handler(req, res) {
     else if (req.method == "POST") {
         const event = {...req.body};
         
-        if (event.action == "add"){
-            const resp = await collection.updateOne({ _id: new ObjectId(req.body._id) }, { $set: event }, { upsert: true });
-            res.status(200).json({ message: "Event created", _id: resp.insertedId });
+        if (event.action == "add") {
+            const eventContent = {...event.content};
+            // Remove _id if it exists to avoid the immutability error
+            delete eventContent._id;
+            
+            try {
+                const result = await collection.insertOne({ 
+                    content: eventContent 
+                });
+                res.status(200).json({ message: "Event created", _id: result.insertedId });
+            } catch (error) {
+                console.error("Error adding event:", error);
+                res.status(500).json({ message: "Failed to create event" });
+            }
         }    
-        else if (event.action == "update"){
-            await collection.updateOne({ _id: new ObjectId(event._id) }, { $set: event.content});
-            res.status(200).json({ message: "Event updated" });
+        else if (event.action == "update") {
+            try {
+                // Create a copy of the content to modify
+                const contentToUpdate = {...event.content};
+                const eventId = contentToUpdate._id;
+                
+                // Remove _id field from the content object to avoid immutability error
+                delete contentToUpdate._id;
+                
+                await collection.updateOne(
+                    { _id: new ObjectId(eventId) }, 
+                    { $set: { content: contentToUpdate } }
+                );
+                res.status(200).json({ message: "Event updated" });
+            } catch (error) {
+                console.error("Error updating event:", error);
+                res.status(500).json({ message: "Failed to update event" });
+            }
         }
-        else if (event.action == "delete"){
-            await collection.deleteOne({ _id: new ObjectId(event._id) });
-            res.status(200).json({ message: "Event deleted" });
+        else if (event.action == "delete") {
+            try {
+                await collection.deleteOne({ _id: new ObjectId(event.content._id) });
+                res.status(200).json({ message: "Event deleted" });
+            } catch (error) {
+                console.error("Error deleting event:", error);
+                res.status(500).json({ message: "Failed to delete event" });
+            }
         }
         else {
             res.status(400).json({ message: "Invalid action" });

@@ -4,7 +4,8 @@ const EventEditor = ({ selectedDate }) => {
   const [events, setEvents] = useState([]);
   const [eventStartDate, setEventStartDate] = useState(null);
   const [eventEndDate, setEventEndDate] = useState(null);
-  const [category, setCategory] = useState('School Event');
+  const [categoryId, setCategoryId] = useState('');
+  const [categories, setCategories] = useState([]);
   const [description, setDescription] = useState('');
   const [name, setName] = useState('');
   const [id, setId] = useState(null);
@@ -12,6 +13,22 @@ const EventEditor = ({ selectedDate }) => {
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
+
+  // Fetch categories from API
+  const fetchCategories = async () => {
+    try {
+      const response = await fetch('/api/schedule/categories');
+      const data = await response.json();
+      setCategories(data);
+      
+      // Set default category if categories exist
+      if (data.length > 0) {
+        setCategoryId(data[0]._id);
+      }
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  };
 
   // Fetch events for the selected date
   const fetchEvents = async () => {
@@ -34,7 +51,7 @@ const EventEditor = ({ selectedDate }) => {
   const handleEventAction = async (action) => {
     const eventData = {
       name,
-      category,
+      categoryId,
       description,
       date: selectedDate,
       allDay,
@@ -71,7 +88,7 @@ const EventEditor = ({ selectedDate }) => {
   const resetForm = () => {
     setEventStartDate(null);
     setEventEndDate(null);
-    setCategory('School Event');
+    setCategoryId(categories.length > 0 ? categories[0]._id : '');
     setDescription('');
     setName('');
     setId(null);
@@ -85,12 +102,19 @@ const EventEditor = ({ selectedDate }) => {
     setIsEditing(true);
     setSelectedEvent(event);
     setId(event._id);
-    setName(event.name);
-    setCategory(event.category);
-    setDescription(event.description);
-    setAllDay(event.allDay);
-    setEventStartDate(event.startTime);
-    setEventEndDate(event.endTime);
+    setName(event.content.name);
+    setCategoryId(event.content.categoryId || ''); // Handle legacy events that might not have categoryId
+    setDescription(event.content.description);
+    setAllDay(event.content.allDay);
+    
+    // Properly format the date strings for the time inputs
+    if (event.content.startTime) {
+      setEventStartDate(event.content.startTime);
+    }
+    
+    if (event.content.endTime) {
+      setEventEndDate(event.content.endTime);
+    }
   };
 
   // Set form based on all-day selection
@@ -99,8 +123,18 @@ const EventEditor = ({ selectedDate }) => {
     if (checked) {
       setEventStartDate(new Date(selectedDate).setHours(0,0,0,0));
       setEventEndDate(new Date(selectedDate).setHours(23,59,59,999));
+    } else if (selectedDate) {
+      // Set some default times when unchecking all-day
+      const now = new Date();
+      setEventStartDate(`${selectedDate.toISOString().split('T')[0]}T${now.getHours().toString().padStart(2, '0')}:00:00.000Z`);
+      setEventEndDate(`${selectedDate.toISOString().split('T')[0]}T${(now.getHours() + 1).toString().padStart(2, '0')}:00:00.000Z`);
     }
   };
+
+  // Fetch categories on component mount
+  useEffect(() => {
+    fetchCategories();
+  }, []);
 
   // Fetch events when selected date changes
   useEffect(() => {
@@ -109,6 +143,12 @@ const EventEditor = ({ selectedDate }) => {
       resetForm();
     }
   }, [selectedDate]);
+
+  // Helper function to get category name from ID
+  const getCategoryNameById = (catId) => {
+    const category = categories.find(cat => cat._id === catId);
+    return category ? category.name : 'Unknown Category';
+  };
 
   return (
     <div className="event-section">
@@ -147,10 +187,15 @@ const EventEditor = ({ selectedDate }) => {
       
       <label>
         Category:
-        <select onChange={(e) => setCategory(e.target.value)} value={category}>
-          <option value="School Event">School Event</option>
-          <option value="Holiday">Holiday</option>
-          <option value="Special Schedule">Special Schedule</option>
+        <select 
+          onChange={(e) => setCategoryId(e.target.value)} 
+          value={categoryId}
+        >
+          {categories.map(cat => (
+            <option key={cat._id} value={cat._id}>
+              {cat.name}
+            </option>
+          ))}
         </select>
       </label>
       
@@ -167,7 +212,7 @@ const EventEditor = ({ selectedDate }) => {
       <div className="form-actions">
         {isEditing ? (
           <>
-            <button onClick={() => handleEventAction('edit')}>Update Event</button>
+            <button onClick={() => handleEventAction('update')}>Update Event</button>
             <button onClick={() => handleEventAction('delete')} className="delete-btn">Delete Event</button>
             <button onClick={resetForm}>Cancel</button>
           </>
@@ -183,12 +228,12 @@ const EventEditor = ({ selectedDate }) => {
         <div className="events-list">
           {events.map((event) => (
             <div key={event._id} className="event-item" onClick={() => selectEventForEdit(event)}>
-              <h4>{event.name}</h4>
-              <p>{event.category}</p>
+              <h4>{event.content.name}</h4>
+              <p>{event.content.categoryId ? getCategoryNameById(event.content.categoryId) : 'Unknown Category'}</p>
               <p>
-                {event.allDay 
+                {event.content.allDay 
                   ? 'All day' 
-                  : `${new Date(event.startTime).toLocaleTimeString()} - ${new Date(event.endTime).toLocaleTimeString()}`
+                  : `${new Date(event.content.startTime).toLocaleTimeString()} - ${new Date(event.content.endTime).toLocaleTimeString()}`
                 }
               </p>
             </div>

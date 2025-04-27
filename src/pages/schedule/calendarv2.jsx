@@ -14,16 +14,51 @@ const Calendarv2 = () => {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState(null);
   
-  // Store the colored days as an array of date strings
-  const [coloredDates, setColoredDates] = useState( [
-    new Date(2024, 11, 5).toDateString(),  // December 5, 2024
-    new Date(2024, 11, 10).toDateString(), // December 10, 2024
-    new Date(2024, 11, 15).toDateString(), // December 15, 2024
-    new Date(2024, 11, 20).toDateString(), // December 20, 2024
-    new Date(2024, 11, 25).toDateString(), // December 25, 2024 
-    ]);
-
+  // Replace coloredDates with datesWithEvents to store date -> categories mapping
+  const [datesWithEvents, setDatesWithEvents] = useState({});
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [dates, setDates] = useState([]);
+
+  // Fetch categories first
+  useEffect(() => {
+    fetch('/api/schedule/categories', { 
+      method: 'GET',
+    })
+      .then(response => response.json())
+      .then(data => {
+        setCategories(data);
+        console.log('Categories loaded:', data);
+      })
+      .catch(error => {
+        console.error('Error fetching categories:', error);
+      });
+  }, []);
+
+  // Fetch colored dates (dates with events)
+  useEffect(() => {
+    setLoading(true);
+    fetch('/api/schedule/events2?getColoredDates=true', { 
+      method: 'GET',
+    })
+      .then(response => response.json())
+      .then(data => {
+        // Transform the data into a more usable format: { 'YYYY-MM-DD': [categoryIds] }
+        const dateMap = {};
+        data.forEach(item => {
+          if (item.date && item.categories) {
+            dateMap[item.date] = item.categories;
+          }
+        });
+        setDatesWithEvents(dateMap);
+        setLoading(false);
+        console.log('Dates with events:', dateMap);
+      })
+      .catch(error => {
+        console.error('Error fetching dates with events:', error);
+        setLoading(false);
+      });
+  }, []);
 
   useEffect(() => {
     fetch('/api/schedule/events2', { 
@@ -39,57 +74,160 @@ const Calendarv2 = () => {
       });
   }, []);
 
-
   useEffect(() => {
     console.log('Selected Date:', selectedDate);
   }, [selectedDate]);
 
-  // Function to handle right-click events and color the clicked date
-  const handleRightClick = (event, date) => {
-    event.preventDefault(); // Prevent the default right-click menu
-
-    // Convert the date to a string for easy comparison
-    const dateStr = date.toDateString();
-
-    // Add or remove the date from the colored dates list
-    setColoredDates((prevColoredDates) => {
-      if (prevColoredDates.includes(dateStr)) {
-        // If the date is already colored, remove it
-        return prevColoredDates.filter(d => d !== dateStr);
-      } else {
-        // Otherwise, add the date to the colored list
-        return [...prevColoredDates, dateStr];
-      }
-    });
+  // Get category color by ID
+  const getCategoryColor = (categoryId) => {
+    const category = categories.find(cat => cat._id === categoryId);
+    return category ? category.color || '#ffcc00' : '#ffcc00'; // Default to yellow if not found
   };
 
   // Custom tile content renderer for the calendar
   const tileStyler = ({ date, view }) => {
-    // If the date is in the colored dates list, return a class to style it
-    if (coloredDates.includes(date.toDateString())) {
-      return (
+    if (view !== 'month') return null;
+    
+    // Format date as YYYY-MM-DD to match our keys
+    const dateStr = date.toISOString().split('T')[0];
+    
+    // Check if this date has events
+    if (datesWithEvents[dateStr] && datesWithEvents[dateStr].length > 0) {
+      const categoryIds = datesWithEvents[dateStr];
+      
+      // If there's only one category, show a single color
+      if (categoryIds.length === 1) {
+        const color = getCategoryColor(categoryIds[0]);
+        return (
           <div style={{ display: 'flex', justifyContent: 'center' }}>
-  
-        <div
-          style={{
-            backgroundColor: '#ffcc00',  // Yellow background
-            color: 'white',               // White text
-            borderRadius: '50%',          // Optional: rounded background
-            fontWeight: 'bold', 
-            width : '50%',               // Optional: bold text
-            height: '100%',               // Ensure the content covers the entire tile
-            display: 'flex',              // Center the content
-            justifyContent: 'center',     // Center horizontally
-            alignItems: 'center',         // Center vertically
-          }}
-
-        >
-          &nbsp;
+            <div
+              style={{
+                backgroundColor: color,
+                color: 'white',
+                borderRadius: '50%',
+                fontWeight: 'bold', 
+                width: '50%',
+                height: '100%',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+            >
+              &nbsp;
+            </div>
           </div>
-      </div>
-      );
+        );
+      } 
+      // For multiple categories, divide the circle into sections
+      else {
+        const segments = categoryIds.length;
+        const segmentSize = 100 / segments;
+        
+        return (
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'center',
+            alignItems: 'center',
+            position: 'relative',
+            width: '100%',
+            height: '100%' 
+          }}>
+            <div style={{ 
+              width: '50%', 
+              height: '0',
+              paddingBottom: '50%', 
+              borderRadius: '50%',
+              overflow: 'hidden',
+              position: 'relative'
+            }}>
+              {segments > 5 ? (
+                // If more than 5 categories, just use the first color
+                <div 
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    backgroundColor: getCategoryColor(categoryIds[0])
+                  }}
+                />
+              ) : segments === 2 ? (
+                // For two categories, create simple halves
+                categoryIds.map((catId, index) => (
+                  <div 
+                    key={index}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: index === 0 ? 0 : '50%',
+                      width: '50%',
+                      height: '100%',
+                      backgroundColor: getCategoryColor(catId)
+                    }}
+                  />
+                ))
+              ) : segments === 3 ? (
+                // For three categories
+                categoryIds.map((catId, index) => (
+                  <div 
+                    key={index}
+                    style={{
+                      position: 'absolute',
+                      width: '100%',
+                      height: '100%',
+                      backgroundColor: getCategoryColor(catId),
+                      clipPath: index === 0 
+                        ? 'polygon(0 0, 100% 0, 50% 100%)'
+                        : index === 1
+                          ? 'polygon(0 0, 50% 100%, 0 100%)'
+                          : 'polygon(100% 0, 100% 100%, 50% 100%)'
+                    }}
+                  />
+                ))
+              ) : segments === 4 ? (
+                // For four categories, create quarters
+                categoryIds.map((catId, index) => (
+                  <div 
+                    key={index}
+                    style={{
+                      position: 'absolute',
+                      width: '50%',
+                      height: '50%',
+                      top: index < 2 ? 0 : '50%',
+                      left: index % 2 === 0 ? 0 : '50%',
+                      backgroundColor: getCategoryColor(catId)
+                    }}
+                  />
+                ))
+              ) : (
+                // For five categories
+                categoryIds.map((catId, index) => (
+                  <div 
+                    key={index}
+                    style={{
+                      position: 'absolute',
+                      backgroundColor: getCategoryColor(catId),
+                      ...(index === 0 
+                        ? { top: 0, left: 0, width: '50%', height: '50%' } 
+                        : index === 1 
+                          ? { top: 0, right: 0, width: '50%', height: '50%' }
+                          : index === 2
+                            ? { bottom: 0, left: 0, width: '50%', height: '50%' }
+                            : index === 3
+                              ? { bottom: 0, right: 0, width: '33.33%', height: '50%' }
+                              : { bottom: 0, right: '33.33%', width: '33.33%', height: '50%' }
+                      )
+                    }}
+                  />
+                ))
+              )}
+            </div>
+          </div>
+        );
+      }
     }
-    return '';
+    return null;
   };
 
   return (
@@ -99,33 +237,24 @@ const Calendarv2 = () => {
       </h1>
       <div className="calendar-section">
         <h2>Academic Calendar</h2>
-        <Calendar
-          onChange={setSelectedDate}
-          value={selectedDate}
-          onClickDay={setSelectedDate} // Click to select a date
-          tileContent={tileStyler} // Use the custom tile renderer
-          onMouseDown={(event, date) => {
-            if (event.button === 2) {  // Right-click (button 2)
-              handleRightClick(event, date);
-            }
-          }}
-        />
+        {loading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '20px' }}>
+            <ReactLoading type="spin" color="#000" />
+          </div>
+        ) : (
+          <Calendar
+            onChange={setSelectedDate}
+            value={selectedDate}
+            onClickDay={setSelectedDate}
+            tileContent={tileStyler}
+          />
+        )}
       </div>
       
-      
-      <div>
-        <h3>Colored Dates:</h3>
-        <ul>
-          {coloredDates.map((date, index) => (
-            <li key={index}>{date}</li>
-          ))}
-        </ul>
-      </div>
-       <EventEditor selectedDate={selectedDate} />
+      <CategoryEditor />
+      <EventEditor selectedDate={selectedDate} />
     </div>
   );
-
-
 };
 
 export default Calendarv2;
